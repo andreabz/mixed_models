@@ -1,0 +1,378 @@
+---
+title: "Trying to Understand Variability in Extraction Yield"
+format: html
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: libraries_functions
+
+library(knitr)
+source("R/create_dataset.R")
+```
+
+## Why I started looking into mixed models
+
+I did not start from mixed models.
+
+I started from a practical concern in analytical chemistry:
+
+> how much of the variability I see is due to the method, and how much comes from the matrix?
+
+More specifically:
+
+> am I overestimating the reliability of my results because I am treating dependent observations as independent?
+
+## The experiment
+
+The goal is to study extraction yield of a compound.
+
+We vary:
+
+- extraction solvent  
+- temperature  
+
+And we measure:
+
+- extraction yield  
+
+At first glance, this looks like a standard factorial experiment.
+
+## What makes this experiment different
+
+The samples are not identical.
+
+They come from **different soil samples**.
+
+Each soil:
+
+- has its own composition  
+- has its own organic content  
+- behaves differently during extraction  
+
+Within each soil sample:
+
+- we apply different solvents  
+- we vary temperature  
+- we take replicate measurements  
+
+So the structure is:
+
+- Soil sample  
+  → Solvent / Temperature  
+    → Replicates  
+
+## The data
+
+```{r}
+#| label: tbl-dataset
+#| tbl-cap: "Six random soil samples were extracted at three different temperatures, with three different solvents twice. The yield of a chemical compound was measured in all the samples."
+
+dataset <- create_dataset()
+knitr::kable(dataset)
+```
+
+## First observation
+
+```{r}
+#| label: first_plot
+
+library(ggplot2)
+
+ggplot(dataset, aes(x = Soil, y = Yield)) +
+    geom_jitter(width = 0.1, alpha = 0.7) +
+    labs(title = "Extraction yield by soil sample") +
+    theme_minimal()
+```
+
+At this point, something becomes difficult to ignore.
+
+Measurements from the same soil were consistently closer to each other than to measurements from other soils.
+
+That was the first sign that I was not observing independent data points, but repeated observations of the same underlying systems.
+
+## A question that changed the analysis
+
+> are these observations independent?
+
+Because if they are not:
+
+- the model I use is misaligned
+- the amount of information is overestimated
+
+## Looking at the variability more carefully
+
+```{r}
+#| label: soil_variability
+
+soil_means <- dataset[, .(mean_yield = mean(Yield)), by = Soil]
+
+ggplot(dataset, aes(x = Soil, y = Yield)) +
+    geom_point(alpha = 0.4) +
+    geom_point(data = soil_means, aes(y = mean_yield), size = 3) +
+    labs(title = "Within vs between soil variability") +
+    theme_minimal()
+```
+
+There are clearly two sources of variation:
+
+- differences between soils
+- differences within soils
+
+## What I was doing initially
+
+```{r}
+#| label: ols
+
+m_naive <- lm(Yield ~ Temp + Solvent, data = dataset)
+summary(m_naive)
+```
+
+This assumes:
+
+- all observations are independent
+- variability is homogeneous
+
+At this point, that assumption no longer seems reasonable.
+
+## First correction: acknowledging structure
+
+```{r}
+#| label: anova
+
+m_aov <- aov(Yield ~ Temp + Solvent + Error(Soil), data = dataset)
+summary(m_aov)
+```
+
+This respects the experimental design.
+
+But it mainly adjusts how tests are computed.
+It still does not parameterize variability as a quantity we can interpret.
+
+## Introducing a mixed model
+
+Instead of asking: what is the correct test?
+I started asking: what generates these data?
+
+To answer this question I tried to set up my fist mixel model.
+
+```{r}
+#| label: mixed_model
+
+library(lme4)
+library(lmerTest)
+
+m_lmer <- lmer(Yield ~ Temp + Solvent + (1 | Soil), data = dataset)
+summary(m_lmer)
+```
+
+This is where the interpretation changes.
+
+`(1 | Soil)` means:
+
+- each soil has its own baseline
+- these baselines vary
+- that variability is estimated
+
+## Looking at the variability directly
+
+```{r}
+#| label: variability
+
+vc <- VarCorr(m_lmer)
+
+var_soil <- as.numeric(vc$Soil)
+var_res  <- attr(vc, "sc")^2
+
+var_soil
+var_res
+```
+
+Now variability is explicit:
+
+- between soils
+- within soils
+
+The estimation of similarity among samples within a soil can be calculated with intraclass correlation (ICC):
+
+```{r}
+#| label: ICC
+
+ICC <- var_soil / (var_soil + var_res)
+ICC
+```
+
+This can be interpreted as the proportion of total variance attributable to differences between soils.
+An ICC close to 1 means that observations within the same soil are very similar.
+
+In that case, adding more replicates within the same soil increases precision within that soil,
+but contributes very little to understanding variability across soils.
+
+I was optimizing the wrong dimension of my experiment: replication instead of diversity.
+
+## Visualizing what remains within soils
+
+```{r}
+#| label: within_soils
+
+dt_centered <- copy(dataset)
+dt_centered[, centered := Yield - mean(Yield), by = Soil]
+
+ggplot(dt_centered, aes(x = Soil, y = centered)) +
+    geom_point(alpha = 0.6) +
+    labs(title = "Within-soil variability after removing soil effects",
+    y = "Mean centered yield") +
+    theme_minimal()
+```
+
+Most of the variation is removed when accounting for soil.
+
+## What I am actually estimating
+
+I am not trying to compare these specific soils.
+I am trying to understand how much extraction yield would vary if I analyzed new soils.
+
+This is a property of a population and it is estimated by a so called **random effect**.
+
+To estimate a property of a population, I'm assuming:
+
+- soils are representative
+- there are enough of them
+
+Otherwise the estimate of variability may not be reliable
+
+## Exploring uncertainty of the estimation
+
+To explore this, I used a parametric bootstrap based on the fitted model.
+This generates new datasets consistent with the model assumptions, including the estimated variability between soils.
+
+The resulting distribution shows that even variance estimates can be quite unstable with few groups.
+
+```{r}
+#| label: bootstrap
+#| cache: true
+
+set.seed(123)
+
+boot_fun <- function(model) {
+  as.numeric(VarCorr(model)$Soil)
+}
+
+boot_res <- bootMer(
+  m_lmer,
+  FUN = boot_fun,
+  nsim = 200,
+  use.u = TRUE,
+  type = "parametric"
+)
+```
+
+```{r}
+#| label: boostrap_plot
+
+ggplot(data.frame(var = boot_res$t), aes(x = var)) +
+    geom_histogram(bins = 20) +
+    labs(title = "Estimated variability between soils is itself uncertain") +
+    theme_minimal()
+```
+
+## Implications for experimental design
+
+If the goal is to understand variability across soils:
+
+- adding more replicates within the same soil has diminishing returns
+- adding more soils increases the amount of independent information
+
+This was not obvious to me at the beginning.
+
+## What would happen if I ignored soil?
+
+Up to this point, I have two possible models:
+
+- a model that ignores soil structure  
+- a model that explicitly accounts for it  
+
+The question is:
+
+> does it actually make a difference?
+
+```{r}
+#| label: summary_comparison
+
+summary(m_naive)
+summary(m_lmer)
+```
+
+The two models are fitted on the same data, but they are based on different assumptions:
+
+- `lm()` assumes all observations are independent
+- `lmer()` assumes observations within the same soil are correlated
+
+This affects how uncertainty is estimated.
+
+Looking at standard errors:
+
+```{r}
+#| label: se_comparison
+
+coef(summary(m_naive))
+coef(summary(m_lmer))
+```
+
+In the mixed model, standard errors do not change uniformly: some increase, others decrease. This depends on where each effect is estimated in the experimental structure.
+
+In my case:
+
+- temperature is applied at the soil level  
+- solvent is applied within each soil  
+
+This leads to two very different situations.
+
+For temperature:
+
+- the effective number of independent observations is the number of soils  
+- uncertainty increases  
+- standard errors become larger  
+
+For solvent:
+
+- comparisons are made within the same soil  
+- many more observations contribute  
+- standard errors become smaller  
+
+So the mixed model is not simply more conservative, it reallocates independent information correctly across effects.
+
+If I ignore soil:
+
+- I treat all 48 observations as independent  
+- I underestimate uncertainty for effects applied at the soil level  
+
+If I account for soil:
+
+- I recognize that observations are clustered  
+- I use the appropriate level of variability for each effect  
+
+Ignoring structure is not neutral and it leads to:
+
+- overconfidence for some effects  
+- distorted comparisons between effects  
+- potentially misleading conclusions  
+
+## Final takeaway
+
+Mixed models were not a technical upgrade and hey became necessary because:
+
+- the data were structured
+- that structure mattered
+- ignoring it changed the conclusions
+- I was interested in a property of a population, not in comparing well defined categories.
+
+## What I am still trying to understand
+
+- How many soil samples are enough?
+- When does this variability start to affect decisions?
+- When do these models change conclusions in practice?
+- When is the added complexity actually justified?
