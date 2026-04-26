@@ -58,3 +58,37 @@ create_dataset <- function() {
     )
   )
 }
+
+create_dataset_balanced <- function() {
+  soils <- paste0("S", 1:6)
+  temps <- c("Low", "Med", "High")
+  solvents <- c("A", "B", "C", "D")
+  reps <- 1:2
+
+  dt <- data.table::CJ(
+    Soil = soils,
+    Temp = temps,
+    Solvent = solvents,
+    Rep = reps
+  )
+
+  set.seed(123)
+
+  # random soil effect
+  soil_effects <- rnorm(length(soils), 0, 3)
+  names(soil_effects) <- soils
+
+  # fixed effects
+  temp_effects <- c(Low = -15, Med = -7, High = 0)
+  solvent_effects <- c(A = 0, B = 3, C = 5, D = 1)
+
+  dt[,
+    Yield := 65 +
+      soil_effects[Soil] +
+      temp_effects[Temp] +
+      solvent_effects[Solvent] +
+      rnorm(.N, 0, 0.7)
+  ]
+
+  dt
+}

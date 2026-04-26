@@ -41,6 +41,37 @@ And we measure:
 
 At first glance, this looks like a standard factorial experiment.
 
+## A limitation I initially ignored
+
+At this point, there is an important detail in the experiment that I did not fully appreciate at the beginning.
+
+Temperature is not applied within each soil.
+
+Instead:
+
+- some soils are only observed at low temperature  
+- others only at medium  
+- others only at high  
+
+This means that temperature and soil are partially confounded.
+
+In practice:
+
+> I do not observe the same soil under different temperatures
+
+So differences attributed to temperature may also reflect differences between soils.
+
+This has the important implication that I am not strictly estimating a “pure” temperature effect but I am comparing groups of soils that happen to be associated with different temperatures.
+
+This directly affects how much I can trust the interpretation of temperature.
+
+And it highlights something more general:
+
+> the model cannot recover information that the experiment did not generate
+
+Interestingly, I found that the mixed model makes this limitation more visible.
+It cannot remove the confounding, but it reduces the apparent amount of information available for estimating temperature effects.
+
 ## What makes this experiment different
 
 The samples are not identical.
@@ -292,12 +323,10 @@ This was not obvious to me at the beginning.
 
 Up to this point, I have two possible models:
 
-- a model that ignores soil structure  
-- a model that explicitly accounts for it  
+- A model that ignores soil structure (`m_naive`)
+- A model that explicitly accounts for it (`m_lmer`)
 
-The question is:
-
-> does it actually make a difference?
+The question is: does it actually make a difference?
 
 ```{r}
 #| label: summary_comparison
@@ -306,12 +335,13 @@ summary(m_naive)
 summary(m_lmer)
 ```
 
-The two models are fitted on the same data, but they are based on different assumptions:
+The two models are fitted on the same data, but they operate under different logic. While `lm()` treats all 48 rows as independent pieces of information, `lmer()` recognizes that observations are nested within soils.
 
-- `lm()` assumes all observations are independent
-- `lmer()` assumes observations within the same soil are correlated
+For Solvent, we have 39 df. But for Temp, we have only 3.
 
-This affects how uncertainty is estimated.
+Why? Because in this experimental design, temperature is a **between-soil** factor. Each soil was assigned to only one temperature. Since we have 6 soils and we are estimating 3 temperature levels, the model correctly identifies that we only have 6−3=3 independent units of information to compare temperatures.
+
+If I use `lm()`, I am cheating: I am pretending I have 48 independent soils, which leads to overconfidence and artificially low *p*-values.
 
 Looking at standard errors:
 
@@ -322,53 +352,109 @@ coef(summary(m_naive))
 coef(summary(m_lmer))
 ```
 
-In the mixed model, standard errors do not change uniformly: some increase, others decrease. This depends on where each effect is estimated in the experimental structure.
+For **Temperature**: The model is more conservative. It recognizes that replicates within the same soil don't provide new information about the effect of temperature — they only provide more precision about those specific 6 soils. It prevents us from claiming a significant temperature effect that might just be due to soil-to-soil luck.
 
-In my case:
+For **Solvent**: The model is actually more powerful. Because every solvent was tested on every soil (a within-soil comparison), the model can subtract the baseline variability of each soil. This isolates the solvent effect from the soil noise, making the standard error much smaller.
 
-- temperature is applied at the soil level  
-- solvent is applied within each soil  
+The mixed model isn't just stricter. It is more accurate. It reallocates power where it is earned (within-soil) and adds caution where it is needed (between-soil). Ignoring this structure doesn't just change the numbers; it misrepresents the physical reality of the experiment.
 
-This leads to two very different situations.
+## A better version of the same experiment
 
-For temperature:
+After working through this example, I tried something simple.
 
-- the effective number of independent observations is the number of soils  
-- uncertainty increases  
-- standard errors become larger  
+I redesigned the experiment.
 
-For solvent:
+The goal was again understand how extraction yield depends on temperature and solvent, but I changed the experimental design.
 
-- comparisons are made within the same soil  
-- many more observations contribute  
-- standard errors become smaller  
+In the original experiment each soil was observed at only one temperature.
+In the new version each soil is observed at all temperatures.
 
-So the mixed model is not simply more conservative, it reallocates independent information correctly across effects.
+This removes the confounding between soil and temperature and Now temperature varies **within soil**, not only between soils, as happened with solvent in the previous design.
 
-If I ignore soil:
+## Creating a balanced experiment
 
-- I treat all 48 observations as independent  
-- I underestimate uncertainty for effects applied at the soil level  
+```{r}
+#| label: create_balanced
+dt_bal <- create_dataset_balanced()
+```
 
-If I account for soil:
+First, compare how temperature is distributed across soils.
 
-- I recognize that observations are clustered  
-- I use the appropriate level of variability for each effect  
+```{r}
+#| label: structure_comparison
 
-Ignoring structure is not neutral and it leads to:
+dataset[, Experiment := "Confounded"]
+dt_bal[, Experiment := "Balanced"]
 
-- overconfidence for some effects  
-- distorted comparisons between effects  
-- potentially misleading conclusions  
+dt_all <- rbind(dataset, dt_bal)
+
+ggplot(dt_all, aes(x = Soil, y = Temp, color = Temp)) +
+  geom_jitter(width = 0.1, height = 0.1, alpha = 0.7) +
+  facet_wrap(~Experiment) +
+  labs(title = "Temperature distribution across soils") +
+  theme_minimal()
+```
+
+In the first experiment each soil appears at a single temperature.
+In the second each soil spans all temperatures.
+This is the key structural difference.
+
+Now I can fit the two models and compare their standard error for the coefficients.
+
+```{r}
+#| label: model_comparison
+
+m_lmer_conf <- lmer(Yield ~ Temp + Solvent + (1 | Soil), data = dataset)
+m_lmer_bal  <- lmer(Yield ~ Temp + Solvent + (1 | Soil), data = dt_bal)
+```
+
+```{r}
+#| label: se_comparison_balanced
+
+se_conf <- coef(summary(m_lmer_conf))
+se_bal  <- coef(summary(m_lmer_bal))
+
+se_conf_dt <- se_conf |> data.table() |> _[, Model := "Confounded"]
+se_conf_bal <- se_bal |> data.table() |> _[, Model := "Balanced"]
+
+se_all <- rbind(
+  data.table(term = rownames(se_conf), se = se_conf[, "Std. Error"], Model = "Confounded"),
+  data.table(term = rownames(se_bal),  se = se_bal[, "Std. Error"],  Model = "Balanced")
+)
+
+colnames(se_all) <- c("term", "se", "Model")
+
+ggplot(se_all[grep("Temp", term)], aes(x = term, y = se, fill = Model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Standard errors for temperature effects") +
+  theme_minimal()
+```
+
+In the balanced experiment standard errors for temperature are smaller and uncertainty is reduced.
+This is not a consequence of a better model but of a better experimental design: now I have much more independent information available for estimating each effect.
+
+In the **first experiment** temperature is estimated using differences between soils and very few independent units contribute.
+
+In the **second experiment** temperature is estimated within each soil and many more comparisons are available.
+
+In the balanced experiment:
+
+- temperature effects are less entangled with soil differences
+- estimates are more stable
+- interpretation is more direct
 
 ## Final takeaway
 
-Mixed models were not a technical upgrade and hey became necessary because:
+Mixed models were not a technical upgrade.
 
-- the data were structured
-- that structure mattered
-- ignoring it changed the conclusions
-- I was interested in a property of a population, not in comparing well defined categories.
+They became necessary because:
+
+- the data were structured  
+- that structure mattered  
+- ignoring it changed the conclusions  
+- and some questions could not be answered given how the experiment was performed.
+
+Mixed models, like any other statistical tools, cannot fix a badly designed experiment, however they can help to make its limitations visible.
 
 ## What I am still trying to understand
 
