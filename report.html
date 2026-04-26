@@ -132,6 +132,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ul>
 <p>At first glance, this looks like a standard factorial experiment.</p>
 </section>
+<section id="a-limitation-i-initially-ignored" class="level2">
+<h2 class="anchored" data-anchor-id="a-limitation-i-initially-ignored">A limitation I initially ignored</h2>
+<p>At this point, there is an important detail in the experiment that I did not fully appreciate at the beginning.</p>
+<p>Temperature is not applied within each soil.</p>
+<p>Instead:</p>
+<ul>
+<li>some soils are only observed at low temperature<br>
+</li>
+<li>others only at medium<br>
+</li>
+<li>others only at high</li>
+</ul>
+<p>This means that temperature and soil are partially confounded.</p>
+<p>In practice:</p>
+<blockquote class="blockquote">
+<p>I do not observe the same soil under different temperatures</p>
+</blockquote>
+<p>So differences attributed to temperature may also reflect differences between soils.</p>
+<p>This has the important implication that I am not strictly estimating a “pure” temperature effect but I am comparing groups of soils that happen to be associated with different temperatures.</p>
+<p>This directly affects how much I can trust the interpretation of temperature.</p>
+<p>And it highlights something more general:</p>
+<blockquote class="blockquote">
+<p>the model cannot recover information that the experiment did not generate</p>
+</blockquote>
+<p>Interestingly, I found that the mixed model makes this limitation more visible. It cannot remove the confounding, but it reduces the apparent amount of information available for estimating temperature effects.</p>
+</section>
 <section id="what-makes-this-experiment-different" class="level2">
 <h2 class="anchored" data-anchor-id="what-makes-this-experiment-different">What makes this experiment different</h2>
 <p>The samples are not identical.</p>
@@ -812,14 +838,10 @@ SolventD -0.067  0.000  0.000  0.500  0.500</code></pre>
 <h2 class="anchored" data-anchor-id="what-would-happen-if-i-ignored-soil">What would happen if I ignored soil?</h2>
 <p>Up to this point, I have two possible models:</p>
 <ul>
-<li>a model that ignores soil structure<br>
-</li>
-<li>a model that explicitly accounts for it</li>
+<li>A model that ignores soil structure (<code>m_naive</code>)</li>
+<li>A model that explicitly accounts for it (<code>m_lmer</code>)</li>
 </ul>
-<p>The question is:</p>
-<blockquote class="blockquote">
-<p>does it actually make a difference?</p>
-</blockquote>
+<p>The question is: does it actually make a difference?</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(m_naive)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -885,12 +907,10 @@ SolventC -0.067  0.000  0.000  0.500
 SolventD -0.067  0.000  0.000  0.500  0.500</code></pre>
 </div>
 </div>
-<p>The two models are fitted on the same data, but they are based on different assumptions:</p>
-<ul>
-<li><code>lm()</code> assumes all observations are independent</li>
-<li><code>lmer()</code> assumes observations within the same soil are correlated</li>
-</ul>
-<p>This affects how uncertainty is estimated.</p>
+<p>The two models are fitted on the same data, but they operate under different logic. While <code>lm()</code> treats all 48 rows as independent pieces of information, <code>lmer()</code> recognizes that observations are nested within soils.</p>
+<p>For Solvent, we have 39 df. But for Temp, we have only 3.</p>
+<p>Why? Because in this experimental design, temperature is a <strong>between-soil</strong> factor. Each soil was assigned to only one temperature. Since we have 6 soils and we are estimating 3 temperature levels, the model correctly identifies that we only have 6−3=3 independent units of information to compare temperatures.</p>
+<p>If I use <code>lm()</code>, I am cheating: I am pretending I have 48 independent soils, which leads to overconfidence and artificially low <em>p</em>-values.</p>
 <p>Looking at standard errors:</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">coef</span>(<span class="fu">summary</span>(m_naive))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -914,61 +934,99 @@ SolventC      4.583333  0.2733081 39.000000 16.769844 1.993791e-19
 SolventD      1.083333  0.2733081 39.000000  3.963781 3.051311e-04</code></pre>
 </div>
 </div>
-<p>In the mixed model, standard errors do not change uniformly: some increase, others decrease. This depends on where each effect is estimated in the experimental structure.</p>
-<p>In my case:</p>
+<p>For <strong>Temperature</strong>: The model is more conservative. It recognizes that replicates within the same soil don’t provide new information about the effect of temperature — they only provide more precision about those specific 6 soils. It prevents us from claiming a significant temperature effect that might just be due to soil-to-soil luck.</p>
+<p>For <strong>Solvent</strong>: The model is actually more powerful. Because every solvent was tested on every soil (a within-soil comparison), the model can subtract the baseline variability of each soil. This isolates the solvent effect from the soil noise, making the standard error much smaller.</p>
+<p>The mixed model isn’t just stricter. It is more accurate. It reallocates power where it is earned (within-soil) and adds caution where it is needed (between-soil). Ignoring this structure doesn’t just change the numbers; it misrepresents the physical reality of the experiment.</p>
+</section>
+<section id="a-better-version-of-the-same-experiment" class="level2">
+<h2 class="anchored" data-anchor-id="a-better-version-of-the-same-experiment">A better version of the same experiment</h2>
+<p>After working through this example, I tried something simple.</p>
+<p>I redesigned the experiment.</p>
+<p>The goal was again understand how extraction yield depends on temperature and solvent, but I changed the experimental design.</p>
+<p>In the original experiment each soil was observed at only one temperature. In the new version each soil is observed at all temperatures.</p>
+<p>This removes the confounding between soil and temperature and Now temperature varies <strong>within soil</strong>, not only between soils, as happened with solvent in the previous design.</p>
+</section>
+<section id="creating-a-balanced-experiment" class="level2">
+<h2 class="anchored" data-anchor-id="creating-a-balanced-experiment">Creating a balanced experiment</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>dt_bal <span class="ot">&lt;-</span> <span class="fu">create_dataset_balanced</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>First, compare how temperature is distributed across soils.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>dataset[, Experiment <span class="sc">:</span><span class="er">=</span> <span class="st">"Confounded"</span>]</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>dt_bal[, Experiment <span class="sc">:</span><span class="er">=</span> <span class="st">"Balanced"</span>]</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>dt_all <span class="ot">&lt;-</span> <span class="fu">rbind</span>(dataset, dt_bal)</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(dt_all, <span class="fu">aes</span>(<span class="at">x =</span> Soil, <span class="at">y =</span> Temp, <span class="at">color =</span> Temp)) <span class="sc">+</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_jitter</span>(<span class="at">width =</span> <span class="fl">0.1</span>, <span class="at">height =</span> <span class="fl">0.1</span>, <span class="at">alpha =</span> <span class="fl">0.7</span>) <span class="sc">+</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>Experiment) <span class="sc">+</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Temperature distribution across soils"</span>) <span class="sc">+</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="report_files/figure-html/structure_comparison-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>In the first experiment each soil appears at a single temperature. In the second each soil spans all temperatures. This is the key structural difference.</p>
+<p>Now I can fit the two models and compare their standard error for the coefficients.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>m_lmer_conf <span class="ot">&lt;-</span> <span class="fu">lmer</span>(Yield <span class="sc">~</span> Temp <span class="sc">+</span> Solvent <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">|</span> Soil), <span class="at">data =</span> dataset)</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>m_lmer_bal  <span class="ot">&lt;-</span> <span class="fu">lmer</span>(Yield <span class="sc">~</span> Temp <span class="sc">+</span> Solvent <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">|</span> Soil), <span class="at">data =</span> dt_bal)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>se_conf <span class="ot">&lt;-</span> <span class="fu">coef</span>(<span class="fu">summary</span>(m_lmer_conf))</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>se_bal  <span class="ot">&lt;-</span> <span class="fu">coef</span>(<span class="fu">summary</span>(m_lmer_bal))</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>se_conf_dt <span class="ot">&lt;-</span> se_conf <span class="sc">|&gt;</span> <span class="fu">data.table</span>() <span class="sc">|&gt;</span> _[, Model <span class="sc">:</span><span class="er">=</span> <span class="st">"Confounded"</span>]</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>se_conf_bal <span class="ot">&lt;-</span> se_bal <span class="sc">|&gt;</span> <span class="fu">data.table</span>() <span class="sc">|&gt;</span> _[, Model <span class="sc">:</span><span class="er">=</span> <span class="st">"Balanced"</span>]</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>se_all <span class="ot">&lt;-</span> <span class="fu">rbind</span>(</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">data.table</span>(<span class="at">term =</span> <span class="fu">rownames</span>(se_conf), <span class="at">se =</span> se_conf[, <span class="st">"Std. Error"</span>], <span class="at">Model =</span> <span class="st">"Confounded"</span>),</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">data.table</span>(<span class="at">term =</span> <span class="fu">rownames</span>(se_bal),  <span class="at">se =</span> se_bal[, <span class="st">"Std. Error"</span>],  <span class="at">Model =</span> <span class="st">"Balanced"</span>)</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(se_all) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"term"</span>, <span class="st">"se"</span>, <span class="st">"Model"</span>)</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(se_all[<span class="fu">grep</span>(<span class="st">"Temp"</span>, term)], <span class="fu">aes</span>(<span class="at">x =</span> term, <span class="at">y =</span> se, <span class="at">fill =</span> Model)) <span class="sc">+</span></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_bar</span>(<span class="at">stat =</span> <span class="st">"identity"</span>, <span class="at">position =</span> <span class="st">"dodge"</span>) <span class="sc">+</span></span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Standard errors for temperature effects"</span>) <span class="sc">+</span></span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="report_files/figure-html/se_comparison_balanced-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>In the balanced experiment standard errors for temperature are smaller and uncertainty is reduced. This is not a consequence of a better model but of a better experimental design: now I have much more independent information available for estimating each effect.</p>
+<p>In the <strong>first experiment</strong> temperature is estimated using differences between soils and very few independent units contribute.</p>
+<p>In the <strong>second experiment</strong> temperature is estimated within each soil and many more comparisons are available.</p>
+<p>In the balanced experiment:</p>
 <ul>
-<li>temperature is applied at the soil level<br>
-</li>
-<li>solvent is applied within each soil</li>
-</ul>
-<p>This leads to two very different situations.</p>
-<p>For temperature:</p>
-<ul>
-<li>the effective number of independent observations is the number of soils<br>
-</li>
-<li>uncertainty increases<br>
-</li>
-<li>standard errors become larger</li>
-</ul>
-<p>For solvent:</p>
-<ul>
-<li>comparisons are made within the same soil<br>
-</li>
-<li>many more observations contribute<br>
-</li>
-<li>standard errors become smaller</li>
-</ul>
-<p>So the mixed model is not simply more conservative, it reallocates independent information correctly across effects.</p>
-<p>If I ignore soil:</p>
-<ul>
-<li>I treat all 48 observations as independent<br>
-</li>
-<li>I underestimate uncertainty for effects applied at the soil level</li>
-</ul>
-<p>If I account for soil:</p>
-<ul>
-<li>I recognize that observations are clustered<br>
-</li>
-<li>I use the appropriate level of variability for each effect</li>
-</ul>
-<p>Ignoring structure is not neutral and it leads to:</p>
-<ul>
-<li>overconfidence for some effects<br>
-</li>
-<li>distorted comparisons between effects<br>
-</li>
-<li>potentially misleading conclusions</li>
+<li>temperature effects are less entangled with soil differences</li>
+<li>estimates are more stable</li>
+<li>interpretation is more direct</li>
 </ul>
 </section>
 <section id="final-takeaway" class="level2">
 <h2 class="anchored" data-anchor-id="final-takeaway">Final takeaway</h2>
-<p>Mixed models were not a technical upgrade and hey became necessary because:</p>
+<p>Mixed models were not a technical upgrade.</p>
+<p>They became necessary because:</p>
 <ul>
-<li>the data were structured</li>
-<li>that structure mattered</li>
-<li>ignoring it changed the conclusions</li>
-<li>I was interested in a property of a population, not in comparing well defined categories.</li>
+<li>the data were structured<br>
+</li>
+<li>that structure mattered<br>
+</li>
+<li>ignoring it changed the conclusions<br>
+</li>
+<li>and some questions could not be answered given how the experiment was performed.</li>
 </ul>
+<p>Mixed models, like any other statistical tools, cannot fix a badly designed experiment, however they can help to make its limitations visible.</p>
 </section>
 <section id="what-i-am-still-trying-to-understand" class="level2">
 <h2 class="anchored" data-anchor-id="what-i-am-still-trying-to-understand">What I am still trying to understand</h2>
