@@ -53,21 +53,15 @@ Instead:
 - others only at medium  
 - others only at high  
 
-This means that temperature and soil are partially confounded.
+This means that temperature and soil are structurally confounded.
 
 In practice:
 
-> I do not observe the same soil under different temperatures
+- each temperature level is associated with a specific subset of soils
+- I never observe the same soil under different temperatures
 
 So differences attributed to temperature may also reflect differences between soils.
-
-This has the important implication that I am not strictly estimating a “pure” temperature effect but I am comparing groups of soils that happen to be associated with different temperatures.
-
-This directly affects how much I can trust the interpretation of temperature.
-
-And it highlights something more general:
-
-> the model cannot recover information that the experiment did not generate
+This is not a modeling issue. It is a limitation of the experimental design.
 
 Interestingly, I found that the mixed model makes this limitation more visible.
 It cannot remove the confounding, but it reduces the apparent amount of information available for estimating temperature effects.
@@ -87,13 +81,14 @@ Each soil:
 Within each soil sample:
 
 - we apply different solvents  
-- we vary temperature  
-- we take replicate measurements  
+- we take replicate measurements
+
+temperature is not varied within soil in this experiment
 
 So the structure is:
 
-- Soil sample  
-  → Solvent / Temperature  
+- Soil sample / Temperature
+  → Solvent
     → Replicates  
 
 ## The data
@@ -237,7 +232,7 @@ ICC
 ```
 
 This can be interpreted as the proportion of total variance attributable to differences between soils.
-An ICC close to 1 means that observations within the same soil are very similar.
+An ICC close to 1 means that observations within the same soil are very similar. Such high similarity within soils makes the confounding with temperature even more problematic.
 
 In that case, adding more replicates within the same soil increases precision within that soil,
 but contributes very little to understanding variability across soils.
@@ -352,11 +347,11 @@ coef(summary(m_naive))
 coef(summary(m_lmer))
 ```
 
-For **Temperature**: The model is more conservative. It recognizes that replicates within the same soil don't provide new information about the effect of temperature — they only provide more precision about those specific 6 soils. It prevents us from claiming a significant temperature effect that might just be due to soil-to-soil luck.
+For **Temperature**: The model is more conservative. It recognizes that replicates within the same soil don't provide new information about the effect of temperature — they only provide more precision about those specific 6 soils. It prevents us from attributing to temperature what may simply reflect differences between soils.
 
 For **Solvent**: The model is actually more powerful. Because every solvent was tested on every soil (a within-soil comparison), the model can subtract the baseline variability of each soil. This isolates the solvent effect from the soil noise, making the standard error much smaller.
 
-The mixed model isn't just stricter. It is more accurate. It reallocates power where it is earned (within-soil) and adds caution where it is needed (between-soil). Ignoring this structure doesn't just change the numbers; it misrepresents the physical reality of the experiment.
+The mixed model isn’t just stricter. It is more aligned with the structure of the data. It reallocates power where it is earned (within-soil) and adds caution where it is needed (between-soil). Ignoring this structure doesn't just change the numbers; it misrepresents the physical reality of the experiment.
 
 ## A better version of the same experiment
 
@@ -454,7 +449,7 @@ They became necessary because:
 - ignoring it changed the conclusions  
 - and some questions could not be answered given how the experiment was performed.
 
-Mixed models, like any other statistical tools, cannot fix a badly designed experiment, however they can help to make its limitations visible.
+Mixed models, like any other statistical tools, cannot fix a badly designed experiment, but they can make its limitations visible.
 
 ## What I am still trying to understand
 
