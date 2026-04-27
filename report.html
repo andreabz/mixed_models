@@ -144,18 +144,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
 <li>others only at high</li>
 </ul>
-<p>This means that temperature and soil are partially confounded.</p>
+<p>This means that temperature and soil are structurally confounded.</p>
 <p>In practice:</p>
-<blockquote class="blockquote">
-<p>I do not observe the same soil under different temperatures</p>
-</blockquote>
-<p>So differences attributed to temperature may also reflect differences between soils.</p>
-<p>This has the important implication that I am not strictly estimating a “pure” temperature effect but I am comparing groups of soils that happen to be associated with different temperatures.</p>
-<p>This directly affects how much I can trust the interpretation of temperature.</p>
-<p>And it highlights something more general:</p>
-<blockquote class="blockquote">
-<p>the model cannot recover information that the experiment did not generate</p>
-</blockquote>
+<ul>
+<li>each temperature level is associated with a specific subset of soils</li>
+<li>I never observe the same soil under different temperatures</li>
+</ul>
+<p>So differences attributed to temperature may also reflect differences between soils. This is not a modeling issue. It is a limitation of the experimental design.</p>
 <p>Interestingly, I found that the mixed model makes this limitation more visible. It cannot remove the confounding, but it reduces the apparent amount of information available for estimating temperature effects.</p>
 </section>
 <section id="what-makes-this-experiment-different" class="level2">
@@ -174,15 +169,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li>we apply different solvents<br>
 </li>
-<li>we vary temperature<br>
-</li>
 <li>we take replicate measurements</li>
 </ul>
+<p>temperature is not varied within soil in this experiment</p>
 <p>So the structure is:</p>
 <ul>
-<li>Soil sample<br>
-→ Solvent / Temperature<br>
-→ Replicates</li>
+<li>Soil sample / Temperature → Solvent → Replicates</li>
 </ul>
 </section>
 <section id="the-data" class="level2">
@@ -756,7 +748,7 @@ SolventD -0.067  0.000  0.000  0.500  0.500</code></pre>
 <pre><code>[1] 0.9481555</code></pre>
 </div>
 </div>
-<p>This can be interpreted as the proportion of total variance attributable to differences between soils. An ICC close to 1 means that observations within the same soil are very similar.</p>
+<p>This can be interpreted as the proportion of total variance attributable to differences between soils. An ICC close to 1 means that observations within the same soil are very similar. Such high similarity within soils makes the confounding with temperature even more problematic.</p>
 <p>In that case, adding more replicates within the same soil increases precision within that soil, but contributes very little to understanding variability across soils.</p>
 <p>I was optimizing the wrong dimension of my experiment: replication instead of diversity.</p>
 </section>
@@ -934,9 +926,9 @@ SolventC      4.583333  0.2733081 39.000000 16.769844 1.993791e-19
 SolventD      1.083333  0.2733081 39.000000  3.963781 3.051311e-04</code></pre>
 </div>
 </div>
-<p>For <strong>Temperature</strong>: The model is more conservative. It recognizes that replicates within the same soil don’t provide new information about the effect of temperature — they only provide more precision about those specific 6 soils. It prevents us from claiming a significant temperature effect that might just be due to soil-to-soil luck.</p>
+<p>For <strong>Temperature</strong>: The model is more conservative. It recognizes that replicates within the same soil don’t provide new information about the effect of temperature — they only provide more precision about those specific 6 soils. It prevents us from attributing to temperature what may simply reflect differences between soils.</p>
 <p>For <strong>Solvent</strong>: The model is actually more powerful. Because every solvent was tested on every soil (a within-soil comparison), the model can subtract the baseline variability of each soil. This isolates the solvent effect from the soil noise, making the standard error much smaller.</p>
-<p>The mixed model isn’t just stricter. It is more accurate. It reallocates power where it is earned (within-soil) and adds caution where it is needed (between-soil). Ignoring this structure doesn’t just change the numbers; it misrepresents the physical reality of the experiment.</p>
+<p>The mixed model isn’t just stricter. It is more aligned with the structure of the data. It reallocates power where it is earned (within-soil) and adds caution where it is needed (between-soil). Ignoring this structure doesn’t just change the numbers; it misrepresents the physical reality of the experiment.</p>
 </section>
 <section id="a-better-version-of-the-same-experiment" class="level2">
 <h2 class="anchored" data-anchor-id="a-better-version-of-the-same-experiment">A better version of the same experiment</h2>
@@ -1026,7 +1018,7 @@ SolventD      1.083333  0.2733081 39.000000  3.963781 3.051311e-04</code></pre>
 </li>
 <li>and some questions could not be answered given how the experiment was performed.</li>
 </ul>
-<p>Mixed models, like any other statistical tools, cannot fix a badly designed experiment, however they can help to make its limitations visible.</p>
+<p>Mixed models, like any other statistical tools, cannot fix a badly designed experiment, but they can make its limitations visible.</p>
 </section>
 <section id="what-i-am-still-trying-to-understand" class="level2">
 <h2 class="anchored" data-anchor-id="what-i-am-still-trying-to-understand">What I am still trying to understand</h2>
