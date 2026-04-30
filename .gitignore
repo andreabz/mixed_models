@@ -18,6 +18,7 @@
 *.toc
 *.bbl
 *.blg
+*.png
 *.synctex.gz
 
 # --- Directory di output dei render ---
