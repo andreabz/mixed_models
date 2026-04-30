@@ -1,3 +1,4 @@
 project:
   title: "mixed_models"
   output-dir: docs
+  render: report.qmd
