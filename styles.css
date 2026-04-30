@@ -1,0 +1,19 @@
+.reveal {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.reveal h2 {
+  font-size: 58px;
+  font-weight: 800;
+}
+
+.reveal .caption {
+  margin-top: 30px;
+  font-size: 24px;
+  text-align: center;
+  color: #444;
+}
+
+.reveal .slide {
+  padding: 40px;
+}

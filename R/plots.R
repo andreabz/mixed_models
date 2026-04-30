@@ -52,7 +52,7 @@ plot_base <- function(p, title = NULL) {
     theme_linkedin()
 }
 
-plot_structure <- function(dt_conf, dt_bal, annotate = FALSE) {
+plot_structure <- function(dt_conf, dt_bal, title = TRUE, annotate = FALSE) {
   dt_conf[, Experiment := "Confounded"]
   dt_bal[, Experiment := "Balanced"]
 
@@ -65,8 +65,13 @@ plot_structure <- function(dt_conf, dt_bal, annotate = FALSE) {
     ggplot2::geom_jitter(width = 0.15, height = 0.15, size = 3, alpha = 0.8) +
     ggplot2::facet_wrap(~Experiment)
 
-  p <- plot_base(p, "Same data.\nDifferent structure") +
-    scale_color_linkedin()
+  if (title) {
+    p <- plot_base(p, "Same data.\nDifferent structure")
+  }
+
+  p <- p +
+    scale_color_linkedin() +
+    theme_linkedin()
 
   if (annotate) {
     p <- p + annotate_linkedin("structure")
@@ -75,15 +80,20 @@ plot_structure <- function(dt_conf, dt_bal, annotate = FALSE) {
   p
 }
 
-plot_confounding <- function(dt, annotate = FALSE) {
+plot_confounding <- function(dt, title = TRUE, annotate = FALSE) {
   p <- ggplot2::ggplot(
     dt,
     ggplot2::aes(x = Soil, y = Temp, color = Temp)
   ) +
     ggplot2::geom_jitter(width = 0.15, height = 0.15, size = 3, alpha = 0.8)
 
-  p <- plot_base(p, "Each soil at one temperature") +
-    scale_color_linkedin()
+  if (title) {
+    p <- plot_base(p, "Each soil at one temperature")
+  }
+
+  p <- p +
+    scale_color_linkedin() +
+    theme_linkedin()
 
   if (annotate) {
     p <- p + annotate_linkedin("confounding")
@@ -92,14 +102,20 @@ plot_confounding <- function(dt, annotate = FALSE) {
   p
 }
 
-plot_clustering <- function(dt, annotate = FALSE) {
+plot_clustering <- function(dt, title = TRUE, annotate = FALSE) {
   p <- ggplot2::ggplot(
     dt,
     ggplot2::aes(x = Soil, y = Yield)
   ) +
     ggplot2::geom_jitter(width = 0.1, alpha = 0.6, size = 2.5)
 
-  p <- plot_base(p, "Measurements cluster\nwithin soils")
+  if (title) {
+    p <- plot_base(p, "Measurements cluster\nwithin soils")
+  }
+
+  p <- p +
+    scale_color_linkedin() +
+    theme_linkedin()
 
   if (annotate) {
     p <- p + annotate_linkedin("clustering")
@@ -108,7 +124,7 @@ plot_clustering <- function(dt, annotate = FALSE) {
   p
 }
 
-plot_within_between <- function(dt) {
+plot_within_between <- function(dt, title = TRUE) {
   means <- dt[, .(mean_yield = mean(Yield)), by = Soil]
 
   p <- ggplot2::ggplot(
@@ -122,10 +138,18 @@ plot_within_between <- function(dt) {
       size = 4
     )
 
-  plot_base(p, "Within vs between\nsoil variability")
+  if (title) {
+    p <- plot_base(p, "Within vs between\nsoil variability")
+  }
+
+  p <- p +
+    scale_color_linkedin() +
+    theme_linkedin()
+
+  p
 }
 
-plot_centered <- function(dt) {
+plot_centered <- function(dt, title = TRUE) {
   dt_copy <- data.table::copy(dt)
   dt_copy[, centered := Yield - mean(Yield), by = Soil]
 
@@ -135,11 +159,19 @@ plot_centered <- function(dt) {
   ) +
     ggplot2::geom_point(alpha = 0.6)
 
-  plot_base(p, "Within-soil variability") +
-    labs(y = "Mean centered yield")
+  if (title) {
+    p <- plot_base(p, "Within-soil variability")
+  }
+
+  p <- p +
+    scale_color_linkedin() +
+    labs(y = "Mean centered yield") +
+    theme_linkedin()
+
+  p
 }
 
-plot_model_comparison <- function(dt_conf, dt_bal) {
+plot_model_comparison <- function(dt_conf, dt_bal, title = TRUE) {
   dt_conf[, Experiment := "Confounded"]
   dt_bal[, Experiment := "Balanced"]
 
@@ -152,11 +184,16 @@ plot_model_comparison <- function(dt_conf, dt_bal) {
     ggplot2::geom_point(alpha = 0.7, size = 2.5) +
     ggplot2::facet_wrap(~Experiment)
 
-  plot_base(p, "What the model can learn\ndepends on design") +
-    scale_color_linkedin()
+  if (title) {
+    p <- plot_base(p, "What the model can learn\ndepends on design")
+  }
+
+  p +
+    scale_color_linkedin() +
+    theme_linkedin()
 }
 
-plot_se <- function(m_conf, m_bal, annotate = FALSE) {
+plot_se <- function(m_conf, m_bal, title = TRUE, annotate = FALSE) {
   se_conf <- coef(summary(m_conf))
   se_bal <- coef(summary(m_bal))
 
@@ -184,9 +221,14 @@ plot_se <- function(m_conf, m_bal, annotate = FALSE) {
       width = 0.5
     )
 
-  p <- plot_base(p, "Same data size.\nDifferent uncertainty") +
-    labs(y = "Coefficient standard error", x = "Term")
-  scale_fill_linkedin()
+  if (title) {
+    p <- plot_base(p, "Same data size.\nDifferent uncertainty")
+  }
+
+  p <- p +
+    labs(y = "Coefficient standard error", x = "Term") +
+    scale_fill_linkedin() +
+    theme_linkedin()
 
   if (annotate) {
     p <- p + annotate_linkedin("se")

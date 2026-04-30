@@ -1,0 +1,125 @@
+---
+title: ""
+format:
+  revealjs:
+    width: 1080
+    height: 1080
+    slide-number: false
+    transition: none
+    center: true
+    theme: simple
+    css: styles.css
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+
+library(ggplot2)
+library(data.table)
+library(lme4)
+
+source("R/create_dataset.R")
+source("R/plots.R")
+
+dataset <- create_dataset()
+dataset_bal  <- create_dataset_balanced()
+
+m_lmer_conf <- lmer(
+    Yield ~ Temp + Solvent + (1 | Soil),
+    data = dataset
+    )
+
+m_lmer_bal  <- lmer(
+    Yield ~ Temp + Solvent + (1 | Soil),
+    data = dataset_bal
+    )
+```
+
+## Experimental structure
+
+Each soil is observed at only one temperature  
+<br>
+
+```{r}
+#| label: confounding
+
+make_plot(
+    "confounding",
+    dt = dataset,
+    title = FALSE
+    )
+```
+
+---
+
+## What the data actually are
+
+48 measurements ≠ 48 independent observations  
+<br>
+
+```{r}
+#| label: clustering
+
+make_plot(
+    "clustering",
+    dt = dataset,
+    title = FALSE
+    )
+```
+
+---
+
+## A limitation in the original design
+
+Soils and temperature are confounded
+<br>
+
+```{r}
+#| label: confounfing
+
+make_plot(
+    "confounding",
+    dt = dataset,
+    title = FALSE
+    )
+```
+
+---
+
+## Same data. Different structure
+
+What if each soil is tested at all temperatures?  
+<br>
+
+```{r}
+#| label: structure
+
+make_plot(
+    "structure",
+    dt_conf = dataset,
+    dt_bal = dataset_bal,
+    title = FALSE
+    )
+```
+
+---
+
+## Same data. Different uncertainty
+
+Same number of observations. Different independent information.
+<br>
+
+```{r}
+#| label: se
+
+make_plot(
+    "se",
+    m_conf = m_lmer_conf,
+    m_bal = m_lmer_bal,
+    title = FALSE
+    )
+```
