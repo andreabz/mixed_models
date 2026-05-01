@@ -28,6 +28,11 @@ source("R/plots.R")
 dataset <- create_dataset()
 dataset_bal  <- create_dataset_balanced()
 
+m_lm_conf <- lm(
+    Yield ~ Temp + Solvent,
+    data = dataset
+    )
+
 m_lmer_conf <- lmer(
     Yield ~ Temp + Solvent + (1 | Soil),
     data = dataset
@@ -38,23 +43,6 @@ m_lmer_bal  <- lmer(
     data = dataset_bal
     )
 ```
-
-## Experimental structure
-
-Each soil is observed at only one temperature  
-<br>
-
-```{r}
-#| label: confounding
-
-make_plot(
-    "confounding",
-    dt = dataset,
-    title = FALSE
-    )
-```
-
----
 
 ## What the data actually are
 
@@ -73,13 +61,31 @@ make_plot(
 
 ---
 
+## What the model is doing
+
+Mixed models account for grouped observations  
+<br>
+
+```{r}
+#| label: models
+
+make_plot(
+    "models",
+    m_naive = m_lm_conf,
+    m_lmer = m_lmer_conf,
+    title = FALSE
+    )
+```
+
+---
+
 ## A limitation in the original design
 
 Soils and temperature are confounded
 <br>
 
 ```{r}
-#| label: confounfing
+#| label: confounding
 
 make_plot(
     "confounding",

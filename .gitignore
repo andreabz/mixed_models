@@ -23,6 +23,7 @@
 
 # --- Directory di output dei render ---
 /report_files/
+/carusel_files/
 /_site/
 /docs/
 /output/
