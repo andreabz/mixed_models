@@ -41,7 +41,9 @@ scale_fill_linkedin <- function() {
   ggplot2::scale_fill_manual(
     values = c(
       "Confounded" = "#E45756",
-      "Balanced" = "#72B7B2"
+      "Balanced" = "#72B7B2",
+      "lm" = "#E45756",
+      "lmer" = "#72B7B2"
     )
   )
 }
@@ -237,6 +239,59 @@ plot_se <- function(m_conf, m_bal, title = TRUE, annotate = FALSE) {
   p
 }
 
+plot_lm_lmer <- function(m_naive, m_lmer, title = TRUE, annotate = FALSE) {
+  # 1. Estrazione Standard Errors
+  se_naive <- coef(summary(m_naive))[, "Std. Error"]
+  se_mixed <- coef(summary(m_lmer))[, "Std. Error"]
+
+  # 2. Creazione data.table (molto più veloce di data.frame)
+  se_dt <- data.table(
+    term = names(se_naive),
+    lm = se_naive,
+    lmer = se_mixed
+  )
+
+  # 3. Trasformazione da formato wide a long (come pivot_longer)
+  se_long <- melt(
+    se_dt,
+    id.vars = "term",
+    variable.name = "model",
+    value.name = "se"
+  )
+
+  # 4. Plotting
+  p <- ggplot(se_long, aes(x = term, y = se, fill = model)) +
+    geom_col(position = "dodge")
+
+  if (title) {
+    p <- plot_base(p, "Standard errors\nchange unevenly")
+  }
+
+  p <- p +
+    labs(y = "Coefficient standard error", x = NULL) +
+    scale_fill_linkedin() +
+    scale_fill_discrete(
+      labels = c("linear", "mixed"),
+      limits = c("lm", "lmer")
+    ) +
+    theme_linkedin() +
+    theme(
+      legend.position = c(0, 1),
+      legend.justification = c(0, 1),
+      legend.direction = "horizontal",
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+
+  if (annotate) {
+    p <- p + annotate_linkedin("se")
+  }
+
+  p
+}
+
+# Esempio di utilizzo:
+# compare_se_dt(m_naive, m_lmer)
+
 make_plot <- function(type, ...) {
   switch(
     type,
@@ -247,6 +302,7 @@ make_plot <- function(type, ...) {
     "within_between" = plot_within_between(...),
     "centered" = plot_centered(...),
     "comparison" = plot_model_comparison(...),
+    "models" = plot_lm_lmer(...),
     "se" = plot_se(...),
 
     stop("Unknown plot type")
@@ -313,6 +369,7 @@ make_plot_export <- function(type, filename, annotate = FALSE, ...) {
     "centered" = plot_centered(...),
     "comparison" = plot_model_comparison(...),
     "se" = plot_se(..., annotate = annotate),
+    "models" = plot_lm_lmer(..., annotate = annotate),
 
     stop("Unknown plot type")
   )
@@ -323,6 +380,7 @@ make_plot_export <- function(type, filename, annotate = FALSE, ...) {
 generate_all_plots <- function(
   dataset,
   dt_bal,
+  m_lm_conf,
   m_lmer_conf,
   m_lmer_bal,
   path = "figures",
@@ -360,10 +418,10 @@ generate_all_plots <- function(
 
   # ---- Post 5: model intuition
   make_plot_export(
-    "comparison",
+    "models",
     filename = "05_post5_model_view.png",
-    dt_conf = dataset,
-    dt_bal = dt_bal
+    m_naive = m_lm_conf,
+    m_lmer = m_lmer_conf
   )
 
   # ---- Post 6: confounding reveal
