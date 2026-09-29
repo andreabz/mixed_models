@@ -1,122 +1,147 @@
-# Trying to Understand Mixed Models (from an Experimental Perspective)
+# Mixed Models from an Experimental Perspective
 
-This repository contains a Quarto report documenting my attempt to better understand mixed models.
+This repository explores **mixed-effects models as a way to represent the structure of experimental data**, rather than as a more complicated alternative to ordinary linear models.
 
-I did not start from statistical theory.
+The starting point is a practical analytical-chemistry question:
 
-I started from a practical question in analytical chemistry:
+> **How much of the variability I observe is associated with the experimental conditions, and how much is associated with the samples themselves?**
 
-> how much of the variability I observe is due to the method, and how much comes from the matrix?
+The project uses a simulated extraction experiment to examine what changes when observations are not independent and the experimental unit is different from the individual measurement.
 
-## Motivation
+The analysis is written in **R** and **Quarto**, with an intentionally small and transparent example.
 
-In many experiments, especially in analytical chemistry, data are not truly independent.
+## The experimental structure
 
-Measurements are often:
+The simulated experiment contains:
 
-- repeated within the same system  
-- influenced by hidden structure (batch, day, instrument, matrix)  
+- 6 soil samples;
+- 3 temperatures;
+- 4 extraction solvents;
+- 2 replicates per condition.
 
-Ignoring this structure can lead to:
+The response variable is **extraction yield**.
 
-- overestimating the amount of information  
-- underestimating uncertainty  
-- drawing misleading conclusions  
+The important feature is the grouping by soil: observations from the same soil are expected to share characteristics that are not captured by temperature or solvent alone.
 
-This project explores these issues through a concrete example.
+This means that treating every measurement as an independent observation can misrepresent the amount of information contained in the experiment.
 
-## The example
+---
 
-The report is based on a simulated experiment:
+## From the experiment to the model
 
-- 6 soil samples  
-- 3 temperatures  
-- 4 extraction solvents  
-- 2 replicates per condition  
+The project is organised around a sequence of questions:
 
-The response variable is extraction yield.
+1. **What is the experimental unit?**
+2. **Which observations can reasonably be considered independent?**
+3. **What changes when the grouping structure is ignored?**
+4. **What does a random effect represent in this experiment?**
+5. **How does the model change the estimated uncertainty?**
+6. **What can variance components tell us about the experimental process?**
 
-The key feature of the experiment is that:
+The transition from `lm()` to `lmer()` is therefore not presented as a progression from a simple model to a sophisticated one.
 
-> observations within the same soil are more similar than observations across soils.
+It is a response to a different description of the data.
 
-## What this project tries to do
+---
 
-This is not a tutorial.
+## Why mixed models?
 
-It is a structured attempt to answer a few questions:
+Experimental data often contain sources of structure such as:
 
-- What is the real experimental unit?
-- When are observations not independent?
-- What changes when I move from `lm()` to `lmer()`?
-- What am I actually estimating with a random effect?
-- How does the structure of the experiment affect uncertainty?
+- samples or subjects;
+- batches;
+- analytical runs;
+- instruments;
+- days;
+- laboratories;
+- repeated measurements.
 
-## Key ideas explored
+When observations share one of these sources, their variability can be correlated or otherwise structured.
 
-- The model must reflect how the experiment was physically performed  
-- Variability is not a single quantity; it has structure  
-- More data does not necessarily mean more information  
-- Mixed models are not about complexity, but about alignment with reality  
+A mixed-effects model provides a framework for representing some of this structure through **fixed effects and random effects**. More generally, mixed models are widely used for grouped, hierarchical, longitudinal, and repeated-measures data. citeturn0search0
+
+The important point for this project is not the terminology itself, but the connection between the model and the way the experiment was actually performed.
+
+---
+
+## What the project tries to make visible
+
+The analysis focuses on a few principles:
+
+- **The experimental unit matters.**
+- **Variability has structure.**
+- **More observations do not necessarily provide proportionally more information.**
+- **Random effects are a way of representing sources of variation, not simply a technical option in a model formula.**
+- **Model choice affects uncertainty as well as estimated effects.**
+
+These ideas are particularly relevant when analytical measurements are repeated on samples, batches, instruments, days, or other naturally grouped experimental units.
+
+---
 
 ## Contents
 
 - `report.qmd`  
-  Main Quarto document containing the full analysis and narrative
+  Main Quarto document containing the analysis and narrative.
 
 - `R/create_dataset.R`  
-  Script used to generate the dataset
+  Script used to generate the simulated dataset.
 
-## Tools
+---
 
-The analysis is intentionally kept minimal:
+## Reproducibility
 
-- `data.table` for data manipulation  
-- `ggplot2` for visualization  
-- `lme4` and `lmerTest` for mixed models
+The analysis uses a small, explicit R environment managed with `renv`.
 
-## How to run
+To reproduce the report:
 
-1. Clone the repository:
-
-```
+```bash
 git clone https://github.com/andreabz/mixed_models.git
 cd mixed_models
 ```
 
-2. Reproduce the R environment:
+Then restore the project environment:
 
-```
+```r
 install.packages("renv")
 renv::restore()
 ```
 
-3. Render the report
+Render the Quarto report:
 
-```
+```bash
 quarto render report.qmd
 ```
 
-## Notes
+---
 
-This work reflects an ongoing learning process, some interpretations may evolve as my understanding improves.
-The goal is not to provide definitive answers, but to make the reasoning explicit.
+## Software
 
-## Why this might be useful
+The analysis intentionally uses a small set of packages:
 
-If you work with experimental data, especially in applied contexts:
+- `data.table` for data manipulation;
+- `ggplot2` for visualisation;
+- `lme4` and `lmerTest` for mixed-effects modelling;
+- `Quarto` for reproducible reporting;
+- `renv` for environment management.
 
-- chemistry
-- biology
-- engineering
+---
 
-you may recognize situations where observations are treated as independent by default.
-This repository is an attempt to question that assumption.
+## Scope and limitations
 
-## Next steps
+This is a **simulation-based methodological example**, not a general introduction to mixed models.
 
-Areas I am still trying to understand:
+The experiment is deliberately small and simplified. The simulated data cannot reproduce all the complexities of a real analytical method, and the conclusions depend on the assumed data-generating process.
 
-- how many groups are needed to estimate variability reliably
-- when mixed models materially change decisions
-- how to connect variance components to experimental design choices
+The purpose is instead to make the connection between **experimental design, dependence, variance structure, and statistical modelling** explicit.
+
+In particular, the project does not claim that a mixed model is automatically required whenever data are grouped. The relevant question is whether the grouping reflects a meaningful source of variation or dependence and whether that structure matters for the scientific objective.
+
+---
+
+## The broader question
+
+The project is ultimately less about `lmer()` than about a more general principle:
+
+> **Before choosing a statistical model, understand how the data were generated.**
+
+When the physical structure of an experiment changes, the appropriate statistical representation may need to change with it.
